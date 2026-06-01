@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">JJ's Custom PCs logo</title>
+  <desc id="desc">A neon blue and purple hexagon outline surrounding the letters JJ on a transparent background.</desc>
+  <defs>
+    <linearGradient id="edge" x1="166" y1="690" x2="858" y2="324" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#08d7ff"/>
+      <stop offset=".48" stop-color="#3c6fff"/>
+      <stop offset="1" stop-color="#b017ff"/>
+    </linearGradient>
+    <linearGradient id="letters" x1="292" y1="708" x2="718" y2="318" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#08d7ff"/>
+      <stop offset=".54" stop-color="#376cff"/>
+      <stop offset="1" stop-color="#a91dff"/>
+    </linearGradient>
+    <radialGradient id="glass" cx="50%" cy="48%" r="54%">
+      <stop offset="0" stop-color="#1f89ff" stop-opacity=".32"/>
+      <stop offset=".62" stop-color="#5e2eff" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#070a18" stop-opacity=".04"/>
+    </radialGradient>
+    <filter id="soft-glow" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="20" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0.08 0 1 0 0 0.22 0 0 1 0 1 0 0 0 1 0" result="blueGlow"/>
+      <feMerge>
+        <feMergeNode in="blueGlow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="letter-glow" x="-28%" y="-28%" width="156%" height="156%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <path id="left-j" d="M359 305h132v278c0 103-75 174-186 174h-67l35-102h53c41 0 66-25 66-69V409h-33z"/>
+    <path id="right-j" d="M544 305h132v278c0 103-75 174-186 174h-67l35-102h53c41 0 66-25 66-69V409h-33z"/>
+  </defs>
+  <g filter="url(#soft-glow)">
+    <path d="M512 128 806 298v340L512 808 218 638V298Z" fill="url(#glass)" stroke="url(#edge)" stroke-width="24" stroke-linejoin="round"/>
+    <path d="M512 128 806 298v340L512 808 218 638V298Z" fill="none" stroke="#7edfff" stroke-opacity=".22" stroke-width="5" stroke-linejoin="round"/>
+  </g>
+  <g filter="url(#letter-glow)">
+    <use href="#left-j" fill="url(#letters)" opacity=".96"/>
+    <use href="#right-j" fill="url(#letters)" opacity=".96"/>
+    <use href="#left-j" fill="none" stroke="#8be7ff" stroke-opacity=".32" stroke-width="6"/>
+    <use href="#right-j" fill="none" stroke="#8be7ff" stroke-opacity=".32" stroke-width="6"/>
+  </g>
+</svg>
