@@ -8,6 +8,42 @@
   const dropdownButton = document.querySelector("[data-dropdown-button]");
   const dropdownMenu = document.querySelector("[data-dropdown-menu]");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const assetVersion = "v=9";
+  const logoPath = `assets/logo.svg?${assetVersion}`;
+  const faviconPath = `assets/favicon.svg?${assetVersion}`;
+
+  function upsertHeadLink(rel, href, type) {
+    let link = document.querySelector(`link[rel="${rel}"]`);
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = rel;
+      document.head.appendChild(link);
+    }
+    link.href = href;
+    if (type) link.type = type;
+  }
+
+  function syncBrandAssets() {
+    document.querySelectorAll(".brand-mark img").forEach((img) => {
+      img.src = logoPath;
+      img.width = 1024;
+      img.height = 1024;
+    });
+
+    document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
+    upsertHeadLink("icon", faviconPath, "image/svg+xml");
+    upsertHeadLink("shortcut icon", faviconPath);
+    upsertHeadLink("manifest", `site.webmanifest?${assetVersion}`);
+
+    if (!document.querySelector("[data-brand-asset-style]")) {
+      const style = document.createElement("style");
+      style.dataset.brandAssetStyle = "true";
+      style.textContent = ".brand-mark{background:transparent!important;border:0!important;box-shadow:none!important;overflow:visible!important;padding:0!important;border-radius:0!important}.brand-mark img{border-radius:0!important;object-fit:contain!important;filter:drop-shadow(0 0 14px rgba(20,205,255,.55)) drop-shadow(0 0 22px rgba(160,40,255,.38))!important}";
+      document.head.appendChild(style);
+    }
+  }
+
+  syncBrandAssets();
 
   function updateScrollState() {
     const max = document.documentElement.scrollHeight - window.innerHeight;
