@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="JJ's Custom PCs favicon">
+  <defs>
+    <linearGradient id="edge" x1="72" y1="342" x2="440" y2="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#08d7ff"/>
+      <stop offset=".5" stop-color="#3d70ff"/>
+      <stop offset="1" stop-color="#b017ff"/>
+    </linearGradient>
+    <linearGradient id="letters" x1="150" y1="358" x2="360" y2="162" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#08d7ff"/>
+      <stop offset=".56" stop-color="#376cff"/>
+      <stop offset="1" stop-color="#a91dff"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#glow)">
+    <path d="M256 56 406 142v172L256 400 106 314V142Z" fill="none" stroke="url(#edge)" stroke-width="22" stroke-linejoin="round"/>
+    <path d="M178 158h70v144c0 54-39 91-98 91h-37l20-55h27c22 0 35-13 35-36v-88h-17z" fill="url(#letters)"/>
+    <path d="M276 158h70v144c0 54-39 91-98 91h-37l20-55h27c22 0 35-13 35-36v-88h-17z" fill="url(#letters)"/>
+  </g>
+</svg>
