@@ -1,0 +1,14 @@
+{
+  "name": "JJ's Custom PCs",
+  "short_name": "JJ's PCs",
+  "icons": [
+    {
+      "src": "assets/favicon.svg?v=9",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#05070f",
+  "background_color": "#05070f",
+  "display": "standalone"
+}
