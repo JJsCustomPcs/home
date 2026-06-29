@@ -19,4 +19,4 @@ Gallery image size report:
 - gallery-09.jpg: 5184x3456, 4.69 MB -> 2048x1365, 0.86 MB
 - gallery-10.jpg: 5184x3456, 1.89 MB -> 2048x1365, 0.30 MB
 
-Upload note: extract the ZIP/TAR, then upload the CONTENTS of the extracted folder to the GitHub repo root, not the archive file itself.
+I like makin websites n shii
