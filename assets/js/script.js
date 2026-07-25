@@ -1,5 +1,8 @@
 (function () {
+  "use strict";
+
   const root = document.documentElement;
+  const body = document.body;
   const header = document.querySelector("[data-header]");
   const progress = document.querySelector("[data-progress]");
   const menuToggle = document.querySelector("[data-menu-toggle]");
@@ -7,11 +10,19 @@
   const dropdown = document.querySelector("[data-dropdown]");
   const dropdownButton = document.querySelector("[data-dropdown-button]");
   const dropdownMenu = document.querySelector("[data-dropdown-menu]");
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const assetVersion = "v=9";
-  const assetRoot = document.body?.dataset.assetRoot || "";
+  const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const finePointerQuery = window.matchMedia("(pointer: fine)");
+  const desktopQuery = window.matchMedia("(min-width: 901px)");
+  const assetVersion = "v=17";
+  const assetRoot = body?.dataset.assetRoot || "";
   const logoPath = `${assetRoot}assets/logo.svg?${assetVersion}`;
   const faviconPath = `${assetRoot}assets/favicon.svg?${assetVersion}`;
+  const draftKey = "jjCustomPcQuoteDraft";
+  const submissionPendingKey = "jjQuoteSubmissionPending";
+
+  if (!reduceMotionQuery.matches && "IntersectionObserver" in window) {
+    root.classList.add("motion-ready");
+  }
 
   function upsertHeadLink(rel, href, type) {
     let link = document.querySelector(`link[rel="${rel}"]`);
@@ -25,111 +36,176 @@
   }
 
   function syncBrandAssets() {
-    document.querySelectorAll(".brand-mark img").forEach((img) => {
-      img.src = logoPath;
-      img.width = 1024;
-      img.height = 1024;
+    document.querySelectorAll(".brand-mark img").forEach((image) => {
+      image.src = logoPath;
+      image.width = 1024;
+      image.height = 1024;
     });
 
     document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach((link) => link.remove());
     upsertHeadLink("icon", faviconPath, "image/svg+xml");
     upsertHeadLink("shortcut icon", faviconPath);
     upsertHeadLink("manifest", `${assetRoot}site.webmanifest?${assetVersion}`);
-
-    if (!document.querySelector("[data-brand-asset-style]")) {
-      const style = document.createElement("style");
-      style.dataset.brandAssetStyle = "true";
-      style.textContent = ".brand-mark{background:transparent!important;border:0!important;box-shadow:none!important;overflow:visible!important;padding:0!important;border-radius:0!important}.brand-mark img{border-radius:0!important;object-fit:contain!important;filter:drop-shadow(0 0 14px rgba(20,205,255,.55)) drop-shadow(0 0 22px rgba(160,40,255,.38))!important}";
-      document.head.appendChild(style);
-    }
   }
 
   syncBrandAssets();
 
+  let scrollFrame = 0;
   function updateScrollState() {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const max = root.scrollHeight - window.innerHeight;
     const percent = max > 0 ? window.scrollY / max : 0;
     if (progress) progress.style.setProperty("--scroll", percent.toFixed(4));
     if (header) header.classList.toggle("is-scrolled", window.scrollY > 12);
+    scrollFrame = 0;
+  }
+
+  function requestScrollUpdate() {
+    if (scrollFrame) return;
+    scrollFrame = window.requestAnimationFrame(updateScrollState);
   }
 
   updateScrollState();
-  window.addEventListener("scroll", updateScrollState, { passive: true });
+  window.addEventListener("scroll", requestScrollUpdate, { passive: true });
+  window.addEventListener("resize", requestScrollUpdate, { passive: true });
 
-  document.addEventListener("pointermove", (event) => {
-    root.style.setProperty("--mx", `${event.clientX}px`);
-    root.style.setProperty("--my", `${event.clientY}px`);
-  }, { passive: true });
+  if (!reduceMotionQuery.matches && finePointerQuery.matches) {
+    document.addEventListener("pointermove", (event) => {
+      root.style.setProperty("--mx", `${event.clientX}px`);
+      root.style.setProperty("--my", `${event.clientY}px`);
+    }, { passive: true });
+  }
 
-  function closeMenu() {
+  function closeMenu(options = {}) {
     if (!nav || !menuToggle) return;
+    const wasOpen = nav.classList.contains("is-open");
     nav.classList.remove("is-open");
     menuToggle.setAttribute("aria-expanded", "false");
     menuToggle.setAttribute("aria-label", "Open navigation");
+    if (wasOpen && options.restoreFocus) menuToggle.focus();
+  }
+
+  function openMenu() {
+    if (!nav || !menuToggle) return;
+    nav.classList.add("is-open");
+    menuToggle.setAttribute("aria-expanded", "true");
+    menuToggle.setAttribute("aria-label", "Close navigation");
+    const firstLink = nav.querySelector("a");
+    if (firstLink) firstLink.focus();
+  }
+
+  function setDropdown(open, options = {}) {
+    if (!dropdown || !dropdownButton || !dropdownMenu) return;
+    const wasOpen = dropdown.classList.contains("is-open");
+    dropdown.classList.toggle("is-open", open);
+    dropdownButton.setAttribute("aria-expanded", String(open));
+    if (!open && wasOpen && options.restoreFocus) dropdownButton.focus();
+    if (open && options.focusFirst) {
+      const firstLink = dropdownMenu.querySelector("a");
+      if (firstLink) firstLink.focus();
+    }
   }
 
   if (menuToggle && nav) {
     menuToggle.addEventListener("click", () => {
-      const open = nav.classList.toggle("is-open");
-      menuToggle.setAttribute("aria-expanded", String(open));
-      menuToggle.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+      if (nav.classList.contains("is-open")) closeMenu();
+      else openMenu();
     });
 
     nav.addEventListener("click", (event) => {
-      if (event.target.closest("a")) closeMenu();
+      if (event.target.closest("a")) {
+        closeMenu();
+        setDropdown(false);
+      }
     });
   }
 
-  function setDropdown(open) {
-    if (!dropdown || !dropdownButton || !dropdownMenu) return;
-    dropdown.classList.toggle("is-open", open);
-    dropdownButton.setAttribute("aria-expanded", String(open));
-  }
-
-  if (dropdown && dropdownButton) {
+  if (dropdown && dropdownButton && dropdownMenu) {
     dropdownButton.addEventListener("click", (event) => {
       event.preventDefault();
       setDropdown(!dropdown.classList.contains("is-open"));
     });
 
-    dropdown.addEventListener("mouseenter", () => setDropdown(true));
-    dropdown.addEventListener("mouseleave", () => setDropdown(false));
+    dropdownButton.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setDropdown(true, { focusFirst: true });
+      }
+    });
+
+    dropdownMenu.addEventListener("keydown", (event) => {
+      const links = Array.from(dropdownMenu.querySelectorAll("a"));
+      const index = links.indexOf(document.activeElement);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDropdown(false, { restoreFocus: true });
+      } else if (event.key === "Home" && links.length) {
+        event.preventDefault();
+        links[0].focus();
+      } else if (event.key === "End" && links.length) {
+        event.preventDefault();
+        links[links.length - 1].focus();
+      } else if (event.key === "ArrowDown" && index >= 0) {
+        event.preventDefault();
+        links[(index + 1) % links.length].focus();
+      } else if (event.key === "ArrowUp" && index >= 0) {
+        event.preventDefault();
+        links[(index - 1 + links.length) % links.length].focus();
+      }
+    });
+
+    if (finePointerQuery.matches) {
+      dropdown.addEventListener("mouseenter", () => setDropdown(true));
+      dropdown.addEventListener("mouseleave", () => {
+        if (!dropdown.contains(document.activeElement)) setDropdown(false);
+      });
+    }
+
+    dropdown.addEventListener("focusout", (event) => {
+      if (!dropdown.contains(event.relatedTarget)) setDropdown(false);
+    });
   }
 
   document.addEventListener("click", (event) => {
     if (dropdown && !dropdown.contains(event.target)) setDropdown(false);
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+    if (!desktopQuery.matches && nav?.classList.contains("is-open") &&
+        !nav.contains(event.target) && !menuToggle?.contains(event.target)) {
       closeMenu();
-      setDropdown(false);
     }
   });
 
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (dropdown?.classList.contains("is-open")) setDropdown(false, { restoreFocus: true });
+    else if (nav?.classList.contains("is-open")) closeMenu({ restoreFocus: true });
+  });
+
+  desktopQuery.addEventListener("change", () => {
+    closeMenu();
+    setDropdown(false);
+  });
+
   const reveals = document.querySelectorAll(".reveal-up");
-  if ("IntersectionObserver" in window) {
+  if (reduceMotionQuery.matches || !("IntersectionObserver" in window)) {
+    reveals.forEach((item) => item.classList.add("is-visible"));
+  } else {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
       });
-    }, { threshold: 0.14 });
+    }, { threshold: 0.12 });
     reveals.forEach((item) => observer.observe(item));
-  } else {
-    reveals.forEach((item) => item.classList.add("is-visible"));
   }
 
-  if (!reduceMotion && window.matchMedia("(pointer: fine)").matches) {
+  if (!reduceMotionQuery.matches && finePointerQuery.matches) {
     document.querySelectorAll(".tilt-card").forEach((card) => {
       card.addEventListener("pointermove", (event) => {
         const rect = card.getBoundingClientRect();
         const x = (event.clientX - rect.left) / rect.width - 0.5;
         const y = (event.clientY - rect.top) / rect.height - 0.5;
-        card.style.setProperty("--tilt-y", `${x * 7}deg`);
-        card.style.setProperty("--tilt-x", `${y * -7}deg`);
+        card.style.setProperty("--tilt-y", `${x * 5}deg`);
+        card.style.setProperty("--tilt-x", `${y * -5}deg`);
       });
       card.addEventListener("pointerleave", () => {
         card.style.setProperty("--tilt-x", "0deg");
@@ -140,8 +216,8 @@
     document.querySelectorAll(".magnet").forEach((item) => {
       item.addEventListener("pointermove", (event) => {
         const rect = item.getBoundingClientRect();
-        const x = (event.clientX - rect.left - rect.width / 2) * 0.08;
-        const y = (event.clientY - rect.top - rect.height / 2) * 0.12;
+        const x = (event.clientX - rect.left - rect.width / 2) * 0.06;
+        const y = (event.clientY - rect.top - rect.height / 2) * 0.08;
         item.style.setProperty("--magnet-x", `${x}px`);
         item.style.setProperty("--magnet-y", `${y}px`);
       });
@@ -155,56 +231,77 @@
   const lightboxLinks = Array.from(document.querySelectorAll("[data-lightbox]"));
   if (lightboxLinks.length) {
     let activeIndex = 0;
+    let openingLink = null;
     const lightbox = document.createElement("div");
     lightbox.className = "lightbox";
     lightbox.setAttribute("role", "dialog");
     lightbox.setAttribute("aria-modal", "true");
-    lightbox.setAttribute("aria-label", "Build photo viewer");
+    lightbox.setAttribute("aria-labelledby", "lightbox-title");
+    lightbox.setAttribute("aria-hidden", "true");
     lightbox.innerHTML = `
       <div class="lightbox-dialog">
-        <button class="lightbox-close" type="button" aria-label="Close gallery">×</button>
+        <h2 class="visually-hidden" id="lightbox-title">Build photo viewer</h2>
+        <button class="lightbox-close" type="button" aria-label="Close photo viewer">×</button>
         <button class="lightbox-prev" type="button" aria-label="Previous photo">‹</button>
         <div class="lightbox-frame">
           <img alt="">
         </div>
         <button class="lightbox-next" type="button" aria-label="Next photo">›</button>
+        <p class="lightbox-position" aria-live="polite"></p>
         <p class="lightbox-caption"></p>
       </div>
     `;
-    document.body.appendChild(lightbox);
+    body.appendChild(lightbox);
 
     const lightboxImage = lightbox.querySelector("img");
     const lightboxCaption = lightbox.querySelector(".lightbox-caption");
+    const lightboxPosition = lightbox.querySelector(".lightbox-position");
     const closeButton = lightbox.querySelector(".lightbox-close");
     const prevButton = lightbox.querySelector(".lightbox-prev");
     const nextButton = lightbox.querySelector(".lightbox-next");
+    const focusable = [closeButton, prevButton, nextButton];
+
+    function setBackgroundInert(inert) {
+      Array.from(body.children).forEach((element) => {
+        if (element !== lightbox && "inert" in element) element.inert = inert;
+      });
+    }
 
     function setLightboxImage(index) {
       activeIndex = (index + lightboxLinks.length) % lightboxLinks.length;
       const link = lightboxLinks[activeIndex];
       const image = link.querySelector("img");
       const caption = link.dataset.caption || image?.alt || "Build gallery photo";
-      lightboxImage.src = link.href;
+      lightboxImage.src = link.dataset.fullWebp || link.href;
       lightboxImage.alt = image?.alt || caption;
       lightboxCaption.textContent = caption;
+      lightboxPosition.textContent = `Photo ${activeIndex + 1} of ${lightboxLinks.length}`;
     }
 
-    function openLightbox(index) {
+    function openLightbox(index, link) {
+      openingLink = link;
       setLightboxImage(index);
       lightbox.classList.add("is-open");
-      document.body.style.overflow = "hidden";
+      lightbox.setAttribute("aria-hidden", "false");
+      body.classList.add("lightbox-open");
+      setBackgroundInert(true);
       closeButton.focus();
     }
 
     function closeLightbox() {
+      if (!lightbox.classList.contains("is-open")) return;
       lightbox.classList.remove("is-open");
-      document.body.style.overflow = "";
+      lightbox.setAttribute("aria-hidden", "true");
+      body.classList.remove("lightbox-open");
+      setBackgroundInert(false);
+      lightboxImage.removeAttribute("src");
+      if (openingLink?.isConnected) openingLink.focus();
     }
 
     lightboxLinks.forEach((link, index) => {
       link.addEventListener("click", (event) => {
         event.preventDefault();
-        openLightbox(index);
+        openLightbox(index, link);
       });
     });
 
@@ -214,12 +311,38 @@
     lightbox.addEventListener("click", (event) => {
       if (event.target === lightbox) closeLightbox();
     });
-    document.addEventListener("keydown", (event) => {
-      if (!lightbox.classList.contains("is-open")) return;
-      if (event.key === "Escape") closeLightbox();
-      if (event.key === "ArrowLeft") setLightboxImage(activeIndex - 1);
-      if (event.key === "ArrowRight") setLightboxImage(activeIndex + 1);
+    lightbox.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeLightbox();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setLightboxImage(activeIndex - 1);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setLightboxImage(activeIndex + 1);
+      } else if (event.key === "Tab") {
+        const currentIndex = focusable.indexOf(document.activeElement);
+        if (event.shiftKey && currentIndex <= 0) {
+          event.preventDefault();
+          focusable[focusable.length - 1].focus();
+        } else if (!event.shiftKey && currentIndex === focusable.length - 1) {
+          event.preventDefault();
+          focusable[0].focus();
+        }
+      }
     });
+  }
+
+  if (body?.dataset.page === "thankyou") {
+    try {
+      if (sessionStorage.getItem(submissionPendingKey) === "true") {
+        localStorage.removeItem(draftKey);
+        sessionStorage.removeItem(submissionPendingKey);
+      }
+    } catch (error) {
+      // Storage may be unavailable in privacy-restricted browser modes.
+    }
   }
 
   const form = document.querySelector("#quote-form");
@@ -227,82 +350,109 @@
 
   const steps = Array.from(form.querySelectorAll("[data-step]"));
   const stepDots = Array.from(form.querySelectorAll("[data-step-dot]"));
+  const quoteProgress = form.querySelector(".quote-progress");
   const prevBtn = form.querySelector("[data-prev-step]");
   const nextBtn = form.querySelector("[data-next-step]");
-  const submitBtn = document.querySelector("#submitBtn");
-  const restoreBtn = document.querySelector("#restoreBtn");
-  const resetDraftBtn = document.querySelector("#resetDraftBtn");
-  const copySummaryBtn = document.querySelector("#copySummaryBtn");
-  const draftHint = document.querySelector("#draftHint");
-  const timestamp = document.querySelector("#ts");
-  const summaryBox = document.querySelector("#quote-summary");
-  const summaryInput = document.querySelector("#quote-summary-input");
-  const contactMethod = document.querySelector("#contact-method");
-  const contactEmail = document.querySelector("#contact-email");
-  const contactPhone = document.querySelector("#contact-phone");
-  const email = document.querySelector("#email");
-  const phone = document.querySelector("#phone");
+  const submitBtn = form.querySelector("#submitBtn");
+  const restoreBtn = form.querySelector("#restoreBtn");
+  const resetDraftBtn = form.querySelector("#resetDraftBtn");
+  const copySummaryBtn = form.querySelector("#copySummaryBtn");
+  const draftHint = form.querySelector("#draftHint");
+  const timestamp = form.querySelector("#ts");
+  const summaryBox = form.querySelector("#quote-summary");
+  const summaryInput = form.querySelector("#quote-summary-input");
+  const nextInput = form.querySelector('input[name="_next"]');
+  const contactMethod = form.querySelector("#contact-method");
+  const contactEmail = form.querySelector("#contact-email");
+  const contactPhone = form.querySelector("#contact-phone");
+  const email = form.querySelector("#email");
+  const phone = form.querySelector("#phone");
   const overlay = document.querySelector("#submittingOverlay");
-  const draftKey = "jjCustomPcQuoteDraft";
   const draftMaxAge = 24 * 60 * 60 * 1000;
   let currentStep = 0;
+  let saveTimer = 0;
+  let draftPaused = false;
+
+  if (quoteProgress) {
+    quoteProgress.style.setProperty("--quote-step-count", String(stepDots.length || steps.length || 5));
+  }
 
   function namedFields(name) {
     const fields = form.elements[name];
     if (!fields) return [];
-    if (fields instanceof RadioNodeList || fields.length !== undefined) return Array.from(fields);
+    if (typeof RadioNodeList !== "undefined" && fields instanceof RadioNodeList) return Array.from(fields);
+    if (fields.length !== undefined && !fields.tagName) return Array.from(fields);
     return [fields];
   }
 
-  function fieldValues(name) {
+  function fieldValues(name, options = {}) {
     return namedFields(name)
+      .filter((field) => options.includeDisabled || !field.disabled)
       .filter((field) => field.checked || !["checkbox", "radio"].includes(field.type))
-      .map((field) => field.value.trim())
+      .map((field) => String(field.value || "").trim())
       .filter(Boolean);
   }
 
-  function singleValue(name) {
-    return fieldValues(name)[0] || "";
+  function singleValue(name, options) {
+    return fieldValues(name, options)[0] || "";
   }
 
   function setDraftHint(message) {
     if (draftHint) draftHint.textContent = message;
   }
 
+  function configureFormRedirect() {
+    if (!nextInput) return;
+    const isGitHubPages = window.location.hostname.endsWith(".github.io");
+    const isTestProjectPath = /^\/Test(?:\/|$)/i.test(window.location.pathname);
+    nextInput.value = isGitHubPages || isTestProjectPath
+      ? new URL("thankyou.html", window.location.href).href
+      : "https://jjscustompcs.com/thankyou.html";
+  }
+
   function syncContactFields() {
-    const method = contactMethod ? contactMethod.value : "";
-    if (contactEmail) contactEmail.classList.toggle("is-visible", method === "email");
-    if (contactPhone) contactPhone.classList.toggle("is-visible", method === "phone");
+    const method = contactMethod?.value || "";
+    const wantsEmail = method === "email";
+    const wantsPhone = method === "phone";
+
+    if (contactEmail) {
+      contactEmail.hidden = !wantsEmail;
+      contactEmail.classList.toggle("is-visible", wantsEmail);
+    }
+    if (contactPhone) {
+      contactPhone.hidden = !wantsPhone;
+      contactPhone.classList.toggle("is-visible", wantsPhone);
+    }
     if (email) {
-      email.required = method === "email";
-      if (method !== "email") email.value = "";
+      email.disabled = !wantsEmail;
+      email.required = wantsEmail;
+      email.setAttribute("aria-required", String(wantsEmail));
     }
     if (phone) {
-      phone.required = method === "phone";
-      if (method !== "phone") phone.value = "";
+      phone.disabled = !wantsPhone;
+      phone.required = wantsPhone;
+      phone.setAttribute("aria-required", String(wantsPhone));
     }
   }
 
   function generateSummaryText() {
+    const method = singleValue("contact_method");
     const lines = [
-      "JJ's Custom PCs Quote Request",
+      "JJ's Custom PCs Service / Quote Request",
       "",
-      `Project type: ${singleValue("project_type") || "Not selected"}`,
-      `Budget: ${singleValue("budget") || "Not selected"}`,
-      `Use case: ${fieldValues("use_case").join(", ") || "Not selected"}`,
-      `Use-case notes: ${singleValue("use_case_notes") || "None provided"}`,
-      `Performance target: ${singleValue("performance_target") || "Not selected"}`,
-      `Style/theme: ${singleValue("style_theme") || "Not selected"}`,
-      `Existing parts: ${singleValue("existing_parts_status") || "Not selected"}`,
-      `Parts list/details: ${singleValue("parts") || "None provided"}`,
+      `Service needed: ${singleValue("project_type")}`,
+      `Main goal or use: ${singleValue("use_case")}`,
+      `Budget / expected range: ${singleValue("budget")}`,
+      `Parts or device status: ${singleValue("existing_parts_status")}`,
+      `Project details: ${singleValue("project_details")}`,
       "",
       "Contact",
-      `Name: ${singleValue("name") || "Not provided"}`,
-      `Preferred contact method: ${singleValue("contact_method") || "Not selected"}`,
-      `Email: ${singleValue("email") || "Not requested/provided"}`,
-      `Phone: ${singleValue("phone") || "Not requested/provided"}`,
-      `Additional notes: ${singleValue("message") || "None provided"}`,
+      `Name: ${singleValue("name")}`,
+      `Preferred contact method: ${method}`,
     ];
+
+    if (method === "email") lines.push(`Email: ${singleValue("email")}`);
+    if (method === "phone") lines.push(`Phone: ${singleValue("phone")}`);
     return lines.join("\n");
   }
 
@@ -310,7 +460,7 @@
     const text = generateSummaryText();
     if (summaryInput) summaryInput.value = text;
     if (summaryBox) {
-      summaryBox.innerHTML = "";
+      summaryBox.replaceChildren();
       text.split("\n").forEach((line) => {
         const item = document.createElement(line ? "p" : "div");
         item.textContent = line;
@@ -320,53 +470,84 @@
     return text;
   }
 
-  function showStep(index) {
+  function showStep(index, options = {}) {
     currentStep = Math.max(0, Math.min(index, steps.length - 1));
     steps.forEach((step, stepIndex) => {
-      step.classList.toggle("is-active", stepIndex === currentStep);
+      const active = stepIndex === currentStep;
+      step.classList.toggle("is-active", active);
+      step.hidden = !active;
     });
     stepDots.forEach((dot, dotIndex) => {
-      dot.classList.toggle("is-active", dotIndex === currentStep);
+      const active = dotIndex === currentStep;
+      dot.classList.toggle("is-active", active);
       dot.classList.toggle("is-complete", dotIndex < currentStep);
+      if (active) dot.setAttribute("aria-current", "step");
+      else dot.removeAttribute("aria-current");
+      dot.setAttribute("aria-label", `Step ${dotIndex + 1} of ${stepDots.length}`);
     });
     if (prevBtn) prevBtn.hidden = currentStep === 0;
     if (nextBtn) nextBtn.hidden = currentStep === steps.length - 1;
     if (submitBtn) submitBtn.hidden = currentStep !== steps.length - 1;
     if (currentStep === steps.length - 1) updateSummary();
+
+    if (options.focusHeading) {
+      const heading = steps[currentStep].querySelector("h2, h3");
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+        steps[currentStep].scrollIntoView({
+          behavior: reduceMotionQuery.matches ? "auto" : "smooth",
+          block: "start",
+        });
+      }
+    }
+  }
+
+  function firstInvalidField(step) {
+    return Array.from(step.querySelectorAll("input, select, textarea"))
+      .find((field) => !field.disabled && field.type !== "hidden" && !field.checkValidity());
   }
 
   function validateStep(index) {
-    const step = steps[index];
-    const fields = Array.from(step.querySelectorAll("input, select, textarea"));
-    const radioNames = new Set();
+    const invalid = firstInvalidField(steps[index]);
+    if (!invalid) return true;
+    invalid.setAttribute("aria-invalid", "true");
+    invalid.reportValidity();
+    invalid.focus();
+    return false;
+  }
 
-    for (const field of fields) {
-      if (field.disabled || field.type === "hidden") continue;
-      if (field.type === "radio") {
-        if (field.required) radioNames.add(field.name);
-        continue;
-      }
-      if (!field.checkValidity()) {
-        field.reportValidity();
-        return false;
-      }
+  function validateWholeForm() {
+    syncContactFields();
+    for (let index = 0; index < steps.length; index += 1) {
+      const invalid = firstInvalidField(steps[index]);
+      if (!invalid) continue;
+      showStep(index, { focusHeading: false });
+      invalid.setAttribute("aria-invalid", "true");
+      invalid.reportValidity();
+      invalid.focus();
+      return false;
     }
-
-    for (const name of radioNames) {
-      if (!singleValue(name)) {
-        const firstRadio = step.querySelector(`input[type="radio"][name="${CSS.escape(name)}"]`);
-        if (firstRadio) firstRadio.reportValidity();
-        return false;
-      }
-    }
-
     return true;
   }
+
+  form.addEventListener("invalid", (event) => {
+    event.target.setAttribute("aria-invalid", "true");
+  }, true);
+
+  form.addEventListener("input", (event) => {
+    if (event.target.matches("input, select, textarea") && event.target.checkValidity()) {
+      event.target.removeAttribute("aria-invalid");
+    }
+  });
 
   function collectDraft() {
     const data = { savedAt: Date.now(), currentStep, fields: {} };
     Array.from(form.elements).forEach((field) => {
-      if (!field.name || field.name.startsWith("_")) return;
+      if (!field.name || field.name.startsWith("_") ||
+          ["quote_summary", "agree"].includes(field.name) ||
+          ["button", "submit"].includes(field.type)) return;
+
       if (field.type === "checkbox") {
         if (!data.fields[field.name]) data.fields[field.name] = [];
         if (field.checked) data.fields[field.name].push(field.value);
@@ -380,15 +561,26 @@
   }
 
   function saveDraft() {
+    window.clearTimeout(saveTimer);
+    saveTimer = 0;
+    if (draftPaused) return;
     try {
       localStorage.setItem(draftKey, JSON.stringify(collectDraft()));
-      setDraftHint("Draft saved locally for 24 hours.");
+      setDraftHint("Draft saved on this device for up to 24 hours.");
     } catch (error) {
-      setDraftHint("Draft could not be saved.");
+      setDraftHint("Draft could not be saved in this browser.");
     }
   }
 
-  function clearDraft(message) {
+  function scheduleDraftSave() {
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(saveDraft, 450);
+  }
+
+  function clearDraft(message, pauseSaving = false) {
+    window.clearTimeout(saveTimer);
+    saveTimer = 0;
+    draftPaused = pauseSaving;
     try {
       localStorage.removeItem(draftKey);
       setDraftHint(message);
@@ -401,92 +593,147 @@
     try {
       const raw = localStorage.getItem(draftKey);
       if (!raw) {
-        setDraftHint("No saved draft found.");
+        setDraftHint("No saved draft was found on this device.");
         return;
       }
 
       const data = JSON.parse(raw);
       if (!data.savedAt || Date.now() - data.savedAt > draftMaxAge) {
-        clearDraft("Saved draft expired after 24 hours.");
+        clearDraft("The saved draft expired after 24 hours.");
         return;
       }
 
       Array.from(form.elements).forEach((field) => {
         if (!field.name || field.name.startsWith("_")) return;
-        const saved = data.fields[field.name];
+        const saved = data.fields?.[field.name];
         if (field.type === "checkbox") field.checked = Array.isArray(saved) && saved.includes(field.value);
         else if (field.type === "radio") field.checked = saved === field.value;
         else if (saved !== undefined) field.value = saved;
       });
 
+      draftPaused = false;
       syncContactFields();
-      showStep(data.currentStep || 0);
+      showStep(Number.isInteger(data.currentStep) ? data.currentStep : 0);
       updateSummary();
-      setDraftHint("Draft restored.");
+      setDraftHint("Draft restored from this device.");
     } catch (error) {
-      setDraftHint("Draft could not be restored.");
+      setDraftHint("The saved draft could not be restored.");
     }
   }
 
-  if (contactMethod) {
-    contactMethod.addEventListener("change", () => {
-      syncContactFields();
-      saveDraft();
-    });
-  }
-
-  if (prevBtn) {
-    prevBtn.addEventListener("click", () => showStep(currentStep - 1));
-  }
-
-  if (nextBtn) {
-    nextBtn.addEventListener("click", () => {
-      if (!validateStep(currentStep)) return;
-      showStep(currentStep + 1);
-      saveDraft();
-    });
-  }
-
-  if (restoreBtn) restoreBtn.addEventListener("click", restoreDraft);
-  if (resetDraftBtn) resetDraftBtn.addEventListener("click", () => clearDraft("Saved draft reset."));
-  if (copySummaryBtn) {
-    copySummaryBtn.addEventListener("click", async () => {
-      const text = updateSummary();
-      try {
-        await navigator.clipboard.writeText(text);
-        setDraftHint("Summary copied.");
-      } catch (error) {
-        setDraftHint("Summary ready to select and copy.");
-      }
-    });
-  }
-
-  form.addEventListener("input", () => {
+  contactMethod?.addEventListener("change", () => {
+    draftPaused = false;
     syncContactFields();
     updateSummary();
     saveDraft();
   });
 
+  prevBtn?.addEventListener("click", () => {
+    showStep(currentStep - 1, { focusHeading: true });
+    saveDraft();
+  });
+
+  nextBtn?.addEventListener("click", () => {
+    if (!validateStep(currentStep)) return;
+    showStep(currentStep + 1, { focusHeading: true });
+    saveDraft();
+  });
+
+  restoreBtn?.addEventListener("click", restoreDraft);
+  resetDraftBtn?.addEventListener("click", () => {
+    form.reset();
+    form.querySelectorAll('[aria-invalid="true"]').forEach((field) => field.removeAttribute("aria-invalid"));
+    syncContactFields();
+    showStep(0, { focusHeading: true });
+    updateSummary();
+    clearDraft("Form and saved draft cleared.", true);
+  });
+
+  copySummaryBtn?.addEventListener("click", async () => {
+    const text = updateSummary();
+    try {
+      await navigator.clipboard.writeText(text);
+      setDraftHint("Summary copied.");
+    } catch (error) {
+      const helper = document.createElement("textarea");
+      helper.value = text;
+      helper.setAttribute("readonly", "");
+      helper.className = "clipboard-helper";
+      body.appendChild(helper);
+      helper.select();
+      const copied = document.execCommand("copy");
+      helper.remove();
+      setDraftHint(copied ? "Summary copied." : "Copy was unavailable. You can select the summary above.");
+    }
+  });
+
+  form.addEventListener("input", () => {
+    draftPaused = false;
+    updateSummary();
+    scheduleDraftSave();
+  });
+  form.addEventListener("change", () => {
+    draftPaused = false;
+    updateSummary();
+    saveDraft();
+  });
+  window.addEventListener("pagehide", saveDraft);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveDraft();
+  });
+
+  configureFormRedirect();
   syncContactFields();
   showStep(0);
   updateSummary();
 
   form.addEventListener("submit", (event) => {
-    if (!validateStep(currentStep)) {
+    if (!validateWholeForm()) {
       event.preventDefault();
       return;
     }
 
-    if (timestamp) timestamp.value = Math.floor(Date.now() / 1000);
+    configureFormRedirect();
+    if (timestamp) timestamp.value = String(Math.floor(Date.now() / 1000));
     updateSummary();
+    saveDraft();
 
-    if (overlay) overlay.classList.add("is-visible");
+    try {
+      sessionStorage.setItem(submissionPendingKey, "true");
+    } catch (error) {
+      // Submission can continue when session storage is unavailable.
+    }
+
+    if (overlay) {
+      overlay.classList.add("is-visible");
+      overlay.setAttribute("aria-hidden", "false");
+    }
     if (submitBtn) submitBtn.disabled = true;
-    clearDraft("Quote submitted. Saved draft cleared.");
 
-    setTimeout(() => {
-      if (overlay) overlay.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (overlay) {
+        overlay.classList.remove("is-visible");
+        overlay.setAttribute("aria-hidden", "true");
+      }
       if (submitBtn) submitBtn.disabled = false;
-    }, 12000);
+      try {
+        sessionStorage.removeItem(submissionPendingKey);
+      } catch (error) {
+        // No action needed.
+      }
+    }, 15000);
+  });
+
+  window.addEventListener("pageshow", () => {
+    if (overlay) {
+      overlay.classList.remove("is-visible");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+    if (submitBtn) submitBtn.disabled = false;
+    try {
+      sessionStorage.removeItem(submissionPendingKey);
+    } catch (error) {
+      // No action needed.
+    }
   });
 })();
