@@ -13,12 +13,37 @@
   const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   const finePointerQuery = window.matchMedia("(pointer: fine)");
   const desktopQuery = window.matchMedia("(min-width: 901px)");
-  const assetVersion = "v=17";
+  const assetVersion = "v=22";
   const assetRoot = body?.dataset.assetRoot || "";
   const logoPath = `${assetRoot}assets/logo.svg?${assetVersion}`;
   const faviconPath = `${assetRoot}assets/favicon.svg?${assetVersion}`;
   const draftKey = "jjCustomPcQuoteDraft";
   const submissionPendingKey = "jjQuoteSubmissionPending";
+
+  function trackEvent(eventName, parameters = {}) {
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName, parameters);
+      return;
+    }
+
+    const hasTagManager = Boolean(document.querySelector('script[src*="googletagmanager.com"]'));
+    if (hasTagManager && Array.isArray(window.dataLayer)) {
+      window.dataLayer.push({ event: eventName, ...parameters });
+    }
+  }
+
+  window.jjTrackEvent = trackEvent;
+
+  if (body?.dataset.service) trackEvent("view_service", { service_id: body.dataset.service });
+  if (body?.dataset.page === "packages") trackEvent("view_packages");
+  if (body?.dataset.page === "build-detail") trackEvent("view_build", { build_id: body.dataset.build || "build-detail" });
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link) return;
+    if (link.href.startsWith("mailto:")) trackEvent("click_email");
+    if (link.href.startsWith("tel:")) trackEvent("click_phone");
+  });
 
   if (!reduceMotionQuery.matches && "IntersectionObserver" in window) {
     root.classList.add("motion-ready");
@@ -337,6 +362,7 @@
   if (body?.dataset.page === "thankyou") {
     try {
       if (sessionStorage.getItem(submissionPendingKey) === "true") {
+        trackEvent("generate_lead", { form_id: "quote-form" });
         localStorage.removeItem(draftKey);
         sessionStorage.removeItem(submissionPendingKey);
       }
@@ -358,6 +384,7 @@
   const resetDraftBtn = form.querySelector("#resetDraftBtn");
   const copySummaryBtn = form.querySelector("#copySummaryBtn");
   const draftHint = form.querySelector("#draftHint");
+  const formStatus = form.querySelector("#form-status");
   const timestamp = form.querySelector("#ts");
   const summaryBox = form.querySelector("#quote-summary");
   const summaryInput = form.querySelector("#quote-summary-input");
@@ -372,6 +399,7 @@
   let currentStep = 0;
   let saveTimer = 0;
   let draftPaused = false;
+  let quoteStarted = false;
 
   if (quoteProgress) {
     quoteProgress.style.setProperty("--quote-step-count", String(stepDots.length || steps.length || 5));
@@ -403,11 +431,36 @@
 
   function configureFormRedirect() {
     if (!nextInput) return;
-    const isGitHubPages = window.location.hostname.endsWith(".github.io");
-    const isTestProjectPath = /^\/Test(?:\/|$)/i.test(window.location.pathname);
-    nextInput.value = isGitHubPages || isTestProjectPath
-      ? new URL("thankyou.html", window.location.href).href
-      : "https://jjscustompcs.com/thankyou.html";
+    nextInput.value = "https://jjscustompcs.com/thankyou.html";
+  }
+
+  function announceFormError(field) {
+    if (!formStatus || !field) return;
+    const label = form.querySelector(`label[for="${field.id}"]`);
+    const fieldName = label?.textContent?.replace("*", "").trim() || "This field";
+    formStatus.textContent = `${fieldName} needs attention. ${field.validationMessage}`;
+    formStatus.focus({ preventScroll: true });
+  }
+
+  function setSubmitting(isSubmitting) {
+    if (typeof window.JJFormSubmission?.setSubmittingState === "function") {
+      window.JJFormSubmission.setSubmittingState(overlay, submitBtn, isSubmitting);
+      return;
+    }
+    if (overlay) {
+      overlay.classList.toggle("is-visible", isSubmitting);
+      overlay.setAttribute("aria-hidden", String(!isSubmitting));
+    }
+    if (submitBtn) submitBtn.disabled = isSubmitting;
+  }
+
+  function announceSubmissionError() {
+    if (!formStatus) return;
+    window.JJFormSubmission.renderSubmissionError(
+      formStatus,
+      document,
+      "contact.jjscustompcs@gmail.com"
+    );
   }
 
   function syncContactFields() {
@@ -512,6 +565,8 @@
     const invalid = firstInvalidField(steps[index]);
     if (!invalid) return true;
     invalid.setAttribute("aria-invalid", "true");
+    announceFormError(invalid);
+    trackEvent("form_error", { form_id: "quote-form", error_type: "validation", step_id: `step_${index + 1}` });
     invalid.reportValidity();
     invalid.focus();
     return false;
@@ -524,6 +579,8 @@
       if (!invalid) continue;
       showStep(index, { focusHeading: false });
       invalid.setAttribute("aria-invalid", "true");
+      announceFormError(invalid);
+      trackEvent("form_error", { form_id: "quote-form", error_type: "validation", step_id: `step_${index + 1}` });
       invalid.reportValidity();
       invalid.focus();
       return false;
@@ -538,6 +595,7 @@
   form.addEventListener("input", (event) => {
     if (event.target.matches("input, select, textarea") && event.target.checkValidity()) {
       event.target.removeAttribute("aria-invalid");
+      if (formStatus) formStatus.textContent = "";
     }
   });
 
@@ -636,6 +694,7 @@
   nextBtn?.addEventListener("click", () => {
     if (!validateStep(currentStep)) return;
     showStep(currentStep + 1, { focusHeading: true });
+    trackEvent("quote_step", { form_id: "quote-form", step_id: `step_${currentStep + 1}` });
     saveDraft();
   });
 
@@ -654,6 +713,7 @@
     try {
       await navigator.clipboard.writeText(text);
       setDraftHint("Summary copied.");
+      trackEvent("copy_quote_summary", { form_id: "quote-form" });
     } catch (error) {
       const helper = document.createElement("textarea");
       helper.value = text;
@@ -667,12 +727,20 @@
     }
   });
 
+  function markQuoteStarted() {
+    if (quoteStarted) return;
+    quoteStarted = true;
+    trackEvent("start_quote", { form_id: "quote-form" });
+  }
+
   form.addEventListener("input", () => {
+    markQuoteStarted();
     draftPaused = false;
     updateSummary();
     scheduleDraftSave();
   });
   form.addEventListener("change", () => {
+    markQuoteStarted();
     draftPaused = false;
     updateSummary();
     saveDraft();
@@ -687,6 +755,30 @@
   showStep(0);
   updateSummary();
 
+  const supportsAjaxSubmission = typeof window.fetch === "function" &&
+    typeof window.FormData === "function" &&
+    typeof window.JJFormSubmission?.createSubmissionHandler === "function" &&
+    typeof window.JJFormSubmission?.renderSubmissionError === "function";
+  const submitQuote = supportsAjaxSubmission
+    ? window.JJFormSubmission.createSubmissionHandler({
+      fetchImpl: window.fetch.bind(window),
+      setSubmitting,
+      onSuccess: () => {
+        clearDraft("Request sent. Opening confirmation…", true);
+        try {
+          sessionStorage.setItem(submissionPendingKey, "true");
+        } catch (error) {
+          // Analytics can continue without session storage.
+        }
+        window.location.assign("/thankyou.html");
+      },
+      onError: () => {
+        announceSubmissionError();
+        trackEvent("form_error", { form_id: "quote-form", error_type: "submission" });
+      },
+    })
+    : null;
+
   form.addEventListener("submit", (event) => {
     if (!validateWholeForm()) {
       event.preventDefault();
@@ -697,39 +789,19 @@
     if (timestamp) timestamp.value = String(Math.floor(Date.now() / 1000));
     updateSummary();
     saveDraft();
+    if (!submitQuote) return;
 
-    try {
-      sessionStorage.setItem(submissionPendingKey, "true");
-    } catch (error) {
-      // Submission can continue when session storage is unavailable.
-    }
-
-    if (overlay) {
-      overlay.classList.add("is-visible");
-      overlay.setAttribute("aria-hidden", "false");
-    }
-    if (submitBtn) submitBtn.disabled = true;
-
-    window.setTimeout(() => {
-      if (overlay) {
-        overlay.classList.remove("is-visible");
-        overlay.setAttribute("aria-hidden", "true");
-      }
-      if (submitBtn) submitBtn.disabled = false;
-      try {
-        sessionStorage.removeItem(submissionPendingKey);
-      } catch (error) {
-        // No action needed.
-      }
-    }, 15000);
+    event.preventDefault();
+    submitQuote({
+      validate: () => true,
+      action: form.action,
+      baseUrl: window.location.href,
+      formData: new FormData(form),
+    });
   });
 
   window.addEventListener("pageshow", () => {
-    if (overlay) {
-      overlay.classList.remove("is-visible");
-      overlay.setAttribute("aria-hidden", "true");
-    }
-    if (submitBtn) submitBtn.disabled = false;
+    setSubmitting(false);
     try {
       sessionStorage.removeItem(submissionPendingKey);
     } catch (error) {
