@@ -16,6 +16,13 @@ Then open `http://localhost:8000/`.
 
 For production, upload the files as-is to the publishing branch of the GitHub Pages repository. Keep `CNAME`, which points GitHub Pages to `jjscustompcs.com`.
 
-For the `/Test/` project site, upload the same files but omit `CNAME`; otherwise GitHub Pages may try to associate the test repository with the production custom domain. All internal assets and links are relative, so the site itself works at both the custom-domain root and a project path such as `/Test/`.
+This repository is the production site. Do not publish it as a duplicate GitHub Pages project site. The quote form redirects only to the production confirmation page at `https://jjscustompcs.com/thankyou.html`.
 
-The quote form keeps the production fallback redirect at `https://jjscustompcs.com/thankyou.html`. JavaScript changes that value at runtime to the current GitHub Pages project path when the site is running on `*.github.io`, so a test deployment returns to `/Test/thankyou.html`.
+## Validate
+
+Run the dependency-free site checks before publishing:
+
+```sh
+python3 scripts/validate_site.py
+node --check assets/js/script.js
+```

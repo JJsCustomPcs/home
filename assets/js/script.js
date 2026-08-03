@@ -13,12 +13,290 @@
   const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   const finePointerQuery = window.matchMedia("(pointer: fine)");
   const desktopQuery = window.matchMedia("(min-width: 901px)");
-  const assetVersion = "v=17";
+  const assetVersion = "v=24";
   const assetRoot = body?.dataset.assetRoot || "";
   const logoPath = `${assetRoot}assets/logo.svg?${assetVersion}`;
   const faviconPath = `${assetRoot}assets/favicon.svg?${assetVersion}`;
   const draftKey = "jjCustomPcQuoteDraft";
   const submissionPendingKey = "jjQuoteSubmissionPending";
+
+  function trackEvent(eventName, parameters = {}) {
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName, parameters);
+      return;
+    }
+
+    const hasTagManager = Boolean(document.querySelector('script[src*="googletagmanager.com"]'));
+    if (hasTagManager && Array.isArray(window.dataLayer)) {
+      window.dataLayer.push({ event: eventName, ...parameters });
+    }
+  }
+
+  window.jjTrackEvent = trackEvent;
+
+  const rgbThemeStorageKey = "jjRgbThemeHueV1";
+  const rgbThemeDefaultHue = 234;
+  const rgbThemeHeroBaseHue = 234;
+  let activeRgbThemeHue = rgbThemeDefaultHue;
+  let rgbThemeFrame = 0;
+  let pendingRgbThemeHue = rgbThemeDefaultHue;
+  let rgbThemeUi = null;
+
+  function normalizeHue(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return rgbThemeDefaultHue;
+    return ((Math.round(numeric) % 360) + 360) % 360;
+  }
+
+  function calculateHueShift(selectedHue, baseHue = rgbThemeHeroBaseHue) {
+    return ((normalizeHue(selectedHue) - normalizeHue(baseHue) + 540) % 360) - 180;
+  }
+
+  function readSavedRgbTheme() {
+    try {
+      const stored = localStorage.getItem(rgbThemeStorageKey);
+      if (stored === null || stored.trim() === "") return null;
+      const numeric = Number(stored);
+      if (!Number.isInteger(numeric) || numeric < 0 || numeric > 359) return null;
+      return numeric;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveRgbTheme(hue) {
+    try {
+      localStorage.setItem(rgbThemeStorageKey, String(normalizeHue(hue)));
+    } catch (error) {
+      // Theme changes still work for the current page when storage is unavailable.
+    }
+  }
+
+  function removeSavedRgbTheme() {
+    try {
+      localStorage.removeItem(rgbThemeStorageKey);
+    } catch (error) {
+      // Reset still restores the default theme for the current page.
+    }
+  }
+
+  function syncRgbThemeControl(hue) {
+    if (!rgbThemeUi) return;
+    rgbThemeUi.slider.value = String(hue);
+    rgbThemeUi.output.value = `${hue}°`;
+    rgbThemeUi.output.textContent = `${hue}°`;
+    rgbThemeUi.swatch.style.backgroundColor = `hsl(${hue} 100% 60%)`;
+    rgbThemeUi.swatch.title = `Selected hue ${hue} degrees`;
+    rgbThemeUi.presets.forEach((button) => {
+      button.setAttribute("aria-pressed", String(Number(button.dataset.hue) === hue));
+    });
+  }
+
+  function applyRgbTheme(value, options = {}) {
+    const hue = normalizeHue(value);
+    activeRgbThemeHue = hue;
+    root.style.setProperty("--theme-hue", String(hue));
+    root.style.setProperty("--hero-hue-shift", `${calculateHueShift(hue)}deg`);
+    if (options.syncControl !== false) syncRgbThemeControl(hue);
+    return hue;
+  }
+
+  function scheduleRgbTheme(value) {
+    pendingRgbThemeHue = normalizeHue(value);
+    if (rgbThemeFrame) return;
+    rgbThemeFrame = window.requestAnimationFrame(() => {
+      rgbThemeFrame = 0;
+      applyRgbTheme(pendingRgbThemeHue);
+    });
+  }
+
+  function announceRgbTheme(message) {
+    if (rgbThemeUi) rgbThemeUi.status.textContent = message;
+  }
+
+  function createRgbThemeControl() {
+    const control = document.createElement("div");
+    control.className = "rgb-theme-control";
+    control.innerHTML = `
+      <button class="rgb-theme-trigger" type="button" aria-label="Open RGB theme controls" aria-expanded="false" aria-controls="rgb-theme-panel" title="RGB Theme">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="8"></circle>
+          <circle cx="9" cy="9" r="1"></circle>
+          <circle cx="15" cy="9" r="1"></circle>
+          <circle cx="12" cy="15" r="1"></circle>
+        </svg>
+      </button>
+      <section class="rgb-theme-panel" id="rgb-theme-panel" role="dialog" aria-labelledby="rgb-theme-title" hidden>
+        <div class="rgb-theme-panel-heading">
+          <h2 id="rgb-theme-title">RGB Theme</h2>
+          <span class="rgb-theme-swatch" aria-hidden="true"></span>
+        </div>
+        <p class="rgb-theme-helper" id="rgb-theme-helper">Changes the site's RGB lighting and accents.</p>
+        <label class="rgb-theme-slider-label" for="rgb-theme-hue">
+          <span>Hue</span>
+          <output for="rgb-theme-hue">${activeRgbThemeHue}°</output>
+        </label>
+        <input class="rgb-theme-slider" id="rgb-theme-hue" type="range" min="0" max="359" step="1" value="${activeRgbThemeHue}" aria-describedby="rgb-theme-helper">
+        <div class="rgb-theme-presets" aria-label="RGB theme presets"></div>
+        <button class="rgb-theme-reset" type="button">Reset to default</button>
+        <p class="visually-hidden" role="status" aria-live="polite"></p>
+      </section>
+    `;
+
+    const trigger = control.querySelector(".rgb-theme-trigger");
+    const panel = control.querySelector(".rgb-theme-panel");
+    const slider = control.querySelector(".rgb-theme-slider");
+    const output = control.querySelector("output");
+    const swatch = control.querySelector(".rgb-theme-swatch");
+    const presetGrid = control.querySelector(".rgb-theme-presets");
+    const resetButton = control.querySelector(".rgb-theme-reset");
+    const status = control.querySelector('[role="status"]');
+    const presetDefinitions = [
+      ["Default", 234],
+      ["Red", 0],
+      ["Orange", 30],
+      ["Green", 120],
+      ["Cyan", 180],
+      ["Blue", 220],
+      ["Purple", 280],
+      ["Pink", 330],
+    ];
+
+    presetDefinitions.forEach(([label, hue]) => {
+      const button = document.createElement("button");
+      button.className = "rgb-theme-preset";
+      button.type = "button";
+      button.dataset.hue = String(hue);
+      button.style.setProperty("--preset-hue", String(hue));
+      button.textContent = label;
+      button.setAttribute("aria-pressed", "false");
+      presetGrid.appendChild(button);
+    });
+
+    rgbThemeUi = {
+      control,
+      trigger,
+      panel,
+      slider,
+      output,
+      swatch,
+      resetButton,
+      status,
+      presets: Array.from(presetGrid.querySelectorAll("button")),
+    };
+
+    function setPanelOpen(open, options = {}) {
+      panel.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+      trigger.setAttribute("aria-label", open ? "Close RGB theme controls" : "Open RGB theme controls");
+      if (!open && options.restoreFocus) trigger.focus();
+    }
+
+    trigger.addEventListener("click", () => {
+      setPanelOpen(panel.hidden);
+    });
+
+    trigger.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " " || event.code === "Space") {
+        event.preventDefault();
+        setPanelOpen(panel.hidden);
+      }
+    });
+
+    slider.addEventListener("input", () => {
+      scheduleRgbTheme(slider.value);
+    });
+
+    function commitRgbSliderTheme() {
+      if (rgbThemeFrame) {
+        window.cancelAnimationFrame(rgbThemeFrame);
+        rgbThemeFrame = 0;
+      }
+      const hue = applyRgbTheme(slider.value);
+      saveRgbTheme(hue);
+      announceRgbTheme(`RGB theme set to ${hue} degrees.`);
+      trackEvent("rgb_theme_change", { theme_hue: hue, theme_source: "slider" });
+    }
+
+    slider.addEventListener("change", commitRgbSliderTheme);
+
+    const sliderKeyboardSteps = new Map([
+      ["ArrowLeft", -1],
+      ["ArrowDown", -1],
+      ["ArrowRight", 1],
+      ["ArrowUp", 1],
+      ["PageDown", -10],
+      ["PageUp", 10],
+    ]);
+
+    slider.addEventListener("keydown", (event) => {
+      const isBoundaryKey = event.key === "Home" || event.key === "End";
+      if (!isBoundaryKey && !sliderKeyboardSteps.has(event.key)) return;
+      event.preventDefault();
+
+      const current = Number(slider.value);
+      const next = event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? 359
+          : Math.min(359, Math.max(0, current + sliderKeyboardSteps.get(event.key)));
+      slider.value = String(next);
+      applyRgbTheme(next);
+    });
+
+    slider.addEventListener("keyup", (event) => {
+      if (event.key === "Home" || event.key === "End" || sliderKeyboardSteps.has(event.key)) {
+        commitRgbSliderTheme();
+      }
+    });
+
+    rgbThemeUi.presets.forEach((button) => {
+      button.addEventListener("click", () => {
+        const hue = applyRgbTheme(button.dataset.hue);
+        saveRgbTheme(hue);
+        const label = button.textContent.trim();
+        announceRgbTheme(`${label} RGB theme applied.`);
+        trackEvent("rgb_theme_change", { theme_hue: hue, theme_source: "preset" });
+      });
+    });
+
+    resetButton.addEventListener("click", () => {
+      removeSavedRgbTheme();
+      applyRgbTheme(rgbThemeDefaultHue);
+      announceRgbTheme("RGB theme reset to the default blue and purple palette.");
+      trackEvent("rgb_theme_reset", { theme_hue: rgbThemeDefaultHue });
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!panel.hidden && !control.contains(event.target)) setPanelOpen(false);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !panel.hidden) {
+        event.preventDefault();
+        setPanelOpen(false, { restoreFocus: true });
+      }
+    });
+
+    body.appendChild(control);
+    root.classList.add("rgb-theme-ready");
+    syncRgbThemeControl(activeRgbThemeHue);
+  }
+
+  const savedRgbThemeHue = readSavedRgbTheme();
+  applyRgbTheme(savedRgbThemeHue ?? rgbThemeDefaultHue, { syncControl: false });
+  createRgbThemeControl();
+
+  if (body?.dataset.service) trackEvent("view_service", { service_id: body.dataset.service });
+  if (body?.dataset.page === "packages") trackEvent("view_packages");
+  if (body?.dataset.page === "build-detail") trackEvent("view_build", { build_id: body.dataset.build || "build-detail" });
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link) return;
+    if (link.href.startsWith("mailto:")) trackEvent("click_email");
+    if (link.href.startsWith("tel:")) trackEvent("click_phone");
+  });
 
   if (!reduceMotionQuery.matches && "IntersectionObserver" in window) {
     root.classList.add("motion-ready");
@@ -337,6 +615,7 @@
   if (body?.dataset.page === "thankyou") {
     try {
       if (sessionStorage.getItem(submissionPendingKey) === "true") {
+        trackEvent("generate_lead", { form_id: "quote-form" });
         localStorage.removeItem(draftKey);
         sessionStorage.removeItem(submissionPendingKey);
       }
@@ -358,6 +637,7 @@
   const resetDraftBtn = form.querySelector("#resetDraftBtn");
   const copySummaryBtn = form.querySelector("#copySummaryBtn");
   const draftHint = form.querySelector("#draftHint");
+  const formStatus = form.querySelector("#form-status");
   const timestamp = form.querySelector("#ts");
   const summaryBox = form.querySelector("#quote-summary");
   const summaryInput = form.querySelector("#quote-summary-input");
@@ -372,6 +652,7 @@
   let currentStep = 0;
   let saveTimer = 0;
   let draftPaused = false;
+  let quoteStarted = false;
 
   if (quoteProgress) {
     quoteProgress.style.setProperty("--quote-step-count", String(stepDots.length || steps.length || 5));
@@ -403,11 +684,36 @@
 
   function configureFormRedirect() {
     if (!nextInput) return;
-    const isGitHubPages = window.location.hostname.endsWith(".github.io");
-    const isTestProjectPath = /^\/Test(?:\/|$)/i.test(window.location.pathname);
-    nextInput.value = isGitHubPages || isTestProjectPath
-      ? new URL("thankyou.html", window.location.href).href
-      : "https://jjscustompcs.com/thankyou.html";
+    nextInput.value = "https://jjscustompcs.com/thankyou.html";
+  }
+
+  function announceFormError(field) {
+    if (!formStatus || !field) return;
+    const label = form.querySelector(`label[for="${field.id}"]`);
+    const fieldName = label?.textContent?.replace("*", "").trim() || "This field";
+    formStatus.textContent = `${fieldName} needs attention. ${field.validationMessage}`;
+    formStatus.focus({ preventScroll: true });
+  }
+
+  function setSubmitting(isSubmitting) {
+    if (typeof window.JJFormSubmission?.setSubmittingState === "function") {
+      window.JJFormSubmission.setSubmittingState(overlay, submitBtn, isSubmitting);
+      return;
+    }
+    if (overlay) {
+      overlay.classList.toggle("is-visible", isSubmitting);
+      overlay.setAttribute("aria-hidden", String(!isSubmitting));
+    }
+    if (submitBtn) submitBtn.disabled = isSubmitting;
+  }
+
+  function announceSubmissionError() {
+    if (!formStatus) return;
+    window.JJFormSubmission.renderSubmissionError(
+      formStatus,
+      document,
+      "contact.jjscustompcs@gmail.com"
+    );
   }
 
   function syncContactFields() {
@@ -512,6 +818,8 @@
     const invalid = firstInvalidField(steps[index]);
     if (!invalid) return true;
     invalid.setAttribute("aria-invalid", "true");
+    announceFormError(invalid);
+    trackEvent("form_error", { form_id: "quote-form", error_type: "validation", step_id: `step_${index + 1}` });
     invalid.reportValidity();
     invalid.focus();
     return false;
@@ -524,6 +832,8 @@
       if (!invalid) continue;
       showStep(index, { focusHeading: false });
       invalid.setAttribute("aria-invalid", "true");
+      announceFormError(invalid);
+      trackEvent("form_error", { form_id: "quote-form", error_type: "validation", step_id: `step_${index + 1}` });
       invalid.reportValidity();
       invalid.focus();
       return false;
@@ -538,6 +848,7 @@
   form.addEventListener("input", (event) => {
     if (event.target.matches("input, select, textarea") && event.target.checkValidity()) {
       event.target.removeAttribute("aria-invalid");
+      if (formStatus) formStatus.textContent = "";
     }
   });
 
@@ -636,6 +947,7 @@
   nextBtn?.addEventListener("click", () => {
     if (!validateStep(currentStep)) return;
     showStep(currentStep + 1, { focusHeading: true });
+    trackEvent("quote_step", { form_id: "quote-form", step_id: `step_${currentStep + 1}` });
     saveDraft();
   });
 
@@ -654,6 +966,7 @@
     try {
       await navigator.clipboard.writeText(text);
       setDraftHint("Summary copied.");
+      trackEvent("copy_quote_summary", { form_id: "quote-form" });
     } catch (error) {
       const helper = document.createElement("textarea");
       helper.value = text;
@@ -667,12 +980,20 @@
     }
   });
 
+  function markQuoteStarted() {
+    if (quoteStarted) return;
+    quoteStarted = true;
+    trackEvent("start_quote", { form_id: "quote-form" });
+  }
+
   form.addEventListener("input", () => {
+    markQuoteStarted();
     draftPaused = false;
     updateSummary();
     scheduleDraftSave();
   });
   form.addEventListener("change", () => {
+    markQuoteStarted();
     draftPaused = false;
     updateSummary();
     saveDraft();
@@ -687,6 +1008,30 @@
   showStep(0);
   updateSummary();
 
+  const supportsAjaxSubmission = typeof window.fetch === "function" &&
+    typeof window.FormData === "function" &&
+    typeof window.JJFormSubmission?.createSubmissionHandler === "function" &&
+    typeof window.JJFormSubmission?.renderSubmissionError === "function";
+  const submitQuote = supportsAjaxSubmission
+    ? window.JJFormSubmission.createSubmissionHandler({
+      fetchImpl: window.fetch.bind(window),
+      setSubmitting,
+      onSuccess: () => {
+        clearDraft("Request sent. Opening confirmation…", true);
+        try {
+          sessionStorage.setItem(submissionPendingKey, "true");
+        } catch (error) {
+          // Analytics can continue without session storage.
+        }
+        window.location.assign("/thankyou.html");
+      },
+      onError: () => {
+        announceSubmissionError();
+        trackEvent("form_error", { form_id: "quote-form", error_type: "submission" });
+      },
+    })
+    : null;
+
   form.addEventListener("submit", (event) => {
     if (!validateWholeForm()) {
       event.preventDefault();
@@ -697,39 +1042,19 @@
     if (timestamp) timestamp.value = String(Math.floor(Date.now() / 1000));
     updateSummary();
     saveDraft();
+    if (!submitQuote) return;
 
-    try {
-      sessionStorage.setItem(submissionPendingKey, "true");
-    } catch (error) {
-      // Submission can continue when session storage is unavailable.
-    }
-
-    if (overlay) {
-      overlay.classList.add("is-visible");
-      overlay.setAttribute("aria-hidden", "false");
-    }
-    if (submitBtn) submitBtn.disabled = true;
-
-    window.setTimeout(() => {
-      if (overlay) {
-        overlay.classList.remove("is-visible");
-        overlay.setAttribute("aria-hidden", "true");
-      }
-      if (submitBtn) submitBtn.disabled = false;
-      try {
-        sessionStorage.removeItem(submissionPendingKey);
-      } catch (error) {
-        // No action needed.
-      }
-    }, 15000);
+    event.preventDefault();
+    submitQuote({
+      validate: () => true,
+      action: form.action,
+      baseUrl: window.location.href,
+      formData: new FormData(form),
+    });
   });
 
   window.addEventListener("pageshow", () => {
-    if (overlay) {
-      overlay.classList.remove("is-visible");
-      overlay.setAttribute("aria-hidden", "true");
-    }
-    if (submitBtn) submitBtn.disabled = false;
+    setSubmitting(false);
     try {
       sessionStorage.removeItem(submissionPendingKey);
     } catch (error) {
