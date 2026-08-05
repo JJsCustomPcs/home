@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
-const expectedAssetVersion = "24";
+const expectedAssetVersion = "25";
 
 function hslToRgb(hue, saturation, lightness) {
   const h = ((hue % 360) + 360) % 360;
@@ -68,7 +68,7 @@ const [script, css, pages] = await Promise.all([
   publicHtmlFiles(),
 ]);
 
-assert.match(script, /const assetVersion = "v=24";/);
+assert.match(script, /const assetVersion = "v=25";/);
 assert.match(script, /const rgbThemeStorageKey = "jjRgbThemeHueV1";/);
 assert.match(script, /const rgbThemeDefaultHue = 234;/);
 assert.match(script, /\(\(normalizeHue\(selectedHue\) - normalizeHue\(baseHue\) \+ 540\) % 360\) - 180/);
@@ -96,7 +96,7 @@ assert.match(css, /--danger:\s*#ff637d;/);
 assert.match(css, /\.btn-primary\s*\{[^}]*background:\s*linear-gradient\(135deg, var\(--theme-accent-light\), hsl\(var\(--theme-hue-blue\) 100% 70%\) 46%, var\(--theme-secondary\)\);[^}]*color:\s*#02040a;/s);
 assert.match(css, /\.hero-image img\s*\{[^}]*filter:\s*hue-rotate\(var\(--hero-hue-shift\)\) saturate\(1\.08\);/s);
 assert.match(css, /\.brand-mark img\s*\{[^}]*filter:\s*hue-rotate\(var\(--hero-hue-shift\)\)/s);
-assert.match(css, /\.featured-build-panel picture\s*\{[^}]*aspect-ratio:\s*1672 \/ 941;/s);
+assert.match(css, /\.featured-build-panel picture\s*\{[^}]*aspect-ratio:\s*3 \/ 2;/s);
 assert.match(css, /\.featured-build-panel img\s*\{[^}]*height:\s*100%;[^}]*object-fit:\s*contain;/s);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*transition-duration:\s*1ms !important;/);
 assert.doesNotMatch(css, /(?:\.gallery-link|\.gallery-grid|\.build-photo)[^{]*\{[^}]*hue-rotate/s);
@@ -117,7 +117,7 @@ for (const file of pages) {
 }
 
 const home = await readFile(join(root, "index.html"), "utf8");
-assert.match(home, /assets\/js\/form-submit\.js\?v=24/);
+assert.match(home, /assets\/js\/form-submit\.js\?v=25/);
 assert.match(home, /class="section proof-panel featured-build-panel reveal-up"/);
 
 console.log(`RGB theme tests passed: theme architecture, scoped image treatment, semantic colors, and ${pages.length} page asset versions.`);

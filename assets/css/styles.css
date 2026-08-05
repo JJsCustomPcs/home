@@ -1468,6 +1468,17 @@ input.rgb-theme-slider:focus {
   border-radius: var(--radius);
 }
 
+.build-detail-hero .personal-showcase-photo {
+  min-height: 0;
+  aspect-ratio: 3 / 2;
+  background: #03050a;
+}
+
+.build-detail-hero .personal-showcase-photo img {
+  object-fit: contain;
+  transform: none;
+}
+
 .gallery-grid .build-photo {
   grid-area: auto;
   width: 100%;
@@ -1785,7 +1796,7 @@ body.lightbox-open {
   display: block;
   align-self: center;
   overflow: hidden;
-  aspect-ratio: 1672 / 941;
+  aspect-ratio: 3 / 2;
 }
 
 .featured-build-panel img {

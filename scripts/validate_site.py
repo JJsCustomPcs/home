@@ -263,7 +263,7 @@ def main() -> int:
         "quote form POST endpoint": 'id="quote-form" action="https://formsubmit.co/a3b58795bc0ec2a0644d6798de47715b" method="POST"',
         "absolute thank-you fallback": 'name="_next" id="form-next" value="https://jjscustompcs.com/thankyou.html"',
         "source-page fallback": 'name="_url" value="https://jjscustompcs.com/#quote-section"',
-        "AJAX helper": 'src="assets/js/form-submit.js?v=24"',
+        "AJAX helper": 'src="assets/js/form-submit.js?v=25"',
     }
     for label, markup in required_form_markup.items():
         if markup not in home:

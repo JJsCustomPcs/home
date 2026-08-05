@@ -187,7 +187,7 @@ async function testStaticFallbackConfiguration() {
   assert.match(home, /name="_next"[^>]+value="https:\/\/jjscustompcs\.com\/thankyou\.html"/);
   assert.match(home, /name="_url"[^>]+value="https:\/\/jjscustompcs\.com\/#quote-section"/);
   assert.match(home, /id="form-status"[^>]+role="alert"[^>]+aria-live="assertive"/);
-  assert.match(home, /assets\/js\/form-submit\.js\?v=24/);
+  assert.match(home, /assets\/js\/form-submit\.js\?v=25/);
   assert.match(thankyou, /<meta name="robots" content="noindex,\s*follow">/);
   assert.doesNotMatch(sitemap, /thankyou\.html/);
 }

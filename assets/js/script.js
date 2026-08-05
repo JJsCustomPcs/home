@@ -13,7 +13,7 @@
   const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
   const finePointerQuery = window.matchMedia("(pointer: fine)");
   const desktopQuery = window.matchMedia("(min-width: 901px)");
-  const assetVersion = "v=24";
+  const assetVersion = "v=25";
   const assetRoot = body?.dataset.assetRoot || "";
   const logoPath = `${assetRoot}assets/logo.svg?${assetVersion}`;
   const faviconPath = `${assetRoot}assets/favicon.svg?${assetVersion}`;
